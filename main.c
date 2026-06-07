@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 #include <stdint.h>
 #include <math.h>
+#define PI 3.14159265358979323846
 #define NUMPOINTS 1000
 typedef struct  {
     int r,g,b;
@@ -25,14 +26,6 @@ typedef struct {
     Triangle *triangles;
     int       num_triangles;
 } Model;
-
-
-void clear(SDL_Surface *surface) {
-    int height = surface->h;
-    int pitch = surface->pitch;
-    uint8_t *fb = (uint8_t*)surface->pixels;
-    memset(fb, 0, pitch * height);
-}
 Vertex randomPointInTriangle(Vertex A,Vertex B,Vertex C) {
     float r1 = (float)rand() / RAND_MAX;
     float r2 = (float)rand() / RAND_MAX;
@@ -47,10 +40,65 @@ Vertex randomPointInTriangle(Vertex A,Vertex B,Vertex C) {
     P.y = A.y + r1 * (B.y - A.y) + r2 * (C.y - A.y);
     P.z = A.z + r1 * (B.z - A.z) + r2 * (C.z - A.z);
     return P;
+}
+void setPointsToModel(Model *model){
+    int tri = model->num_triangles;
+    for(int j = 0; j < tri; j++){
+        for(int i = 0; i < NUMPOINTS; i++){
+            Vertex A = model->vertices[model->triangles[j].v0];
+            Vertex B = model->vertices[model->triangles[j].v1];
+            Vertex C = model->vertices[model->triangles[j].v2];
+            model->triangles[j].points[i].v = randomPointInTriangle(A,B,C);
+            model->triangles[j].points[i].c = (Color){255,255,255};
+        }    
+    }
+}
 
+void create_circle(Model *model, int segments){
     
+    float step = (2 * PI) / segments;
+    float radius = 5;
+    // 0 is center vertex
+    model->num_vertices = segments + 1;
+    model->vertices = malloc(sizeof(Vertex) * (segments + 1));
+    model->vertices[0] = (Vertex) {0,0,0};
+    for(int i = 1; i < segments + 1; i++){
+        float angle = step * i;
+        
+        model->vertices[i] = (Vertex){
+            cosf(angle) * radius, //Togliere radius da qui e creare modello cerchio 
+            sinf(angle) * radius,
+            0
+        };
+    }
+
+    model->triangles = malloc(sizeof(Triangle) * (segments + 1));
+    model->num_triangles = segments;
+    int verticies_index = 0;
+    for(int i = 0; i < segments; i++){
+        model->triangles[i].v0 = 0; //center
+        model->triangles[i].v1 = i+ 1;
+        model->triangles[i].v2 = ((i+1) % segments) + 1;
+
+        printf("tri[%d]: v0=%d v1=%d v2=%d (num_vertices=%d)\n",
+            i,
+            model->triangles[i].v0,
+            model->triangles[i].v1,
+            model->triangles[i].v2,
+            model->num_vertices);
+    }
+    
+    setPointsToModel(model);
     
 }
+
+void clear(SDL_Surface *surface) {
+    int height = surface->h;
+    int pitch = surface->pitch;
+    uint8_t *fb = (uint8_t*)surface->pixels;
+    memset(fb, 0, pitch * height);
+}
+
 
 Model *create_model(void) {
     Model *model = malloc(sizeof(Model));
@@ -66,15 +114,8 @@ Model *create_model(void) {
     model->triangles[0].v0 = 0;
     model->triangles[0].v1 = 1;
     model->triangles[0].v2 = 2;
-
-    for(int i = 0; i < NUMPOINTS; i++){
-        
-        Vertex A =  model->vertices[model->triangles[0].v0];
-        Vertex B =  model->vertices[model->triangles[0].v1];
-        Vertex C =  model->vertices[model->triangles[0].v2];
-        model->triangles[0].points[i].v = randomPointInTriangle(A,B,C);
-        model->triangles[0].points[i].c = (Color){255,255,255};
-    }
+    model->num_triangles = 1;
+    setPointsToModel(model);
     return model;
 }
 void pixel(SDL_Surface *surface, int x, int y, int r, int g, int b) {
@@ -100,12 +141,14 @@ void draw(SDL_Surface *surface, float time, Model *model) {
     float cy = (float)height / 2;
 
     clear(surface);
-    for (int j = 0; j < NUMPOINTS; j++) {
-        float zfactor = 1 + (model->triangles[0].points[j].v.z / 1.0f);
-        float x = (model->triangles[0].points[j].v.x / zfactor) * 100;
-        float y = (model->triangles[0].points[j].v.y / zfactor) * 100;
-        pixel(surface, round(cx+x), round(cy+y), 255, 255, 255);
-    }
+    for (int t = 0; t < model->num_triangles; t++){
+        for (int j = 0; j < NUMPOINTS; j++) {
+            float zfactor = 1 + model->triangles[t].points[j].v.z;
+            float x = (model->triangles[t].points[j].v.x / zfactor) * 50;
+            float y = (model->triangles[t].points[j].v.y / zfactor) * 50;
+            pixel(surface, round(cx+x), round(cy+y), 255, 255, 255);
+        }
+}
 }
 
 
@@ -142,7 +185,8 @@ int main(int argc, char* argv[]) {
     }
 
     clear(surface);
-    Model *model = create_model();
+    Model *model = malloc(sizeof(Model));
+    create_circle(model,20);
     int running = 1;
     float time = 0;
     while(running) {
