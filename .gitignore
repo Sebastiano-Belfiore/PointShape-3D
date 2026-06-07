@@ -1,0 +1,17 @@
+main
+PointShape-3D
+*.exe
+*.out
+
+
+*.o
+*.obj
+*.a
+*.lib
+
+.vscode/
+.idea/
+*.suo
+
+
+*.dll
